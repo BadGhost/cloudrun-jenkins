@@ -46,7 +46,8 @@ cloudrun-jenkins/
 │   └── TROUBLESHOOTING.md            # Common issues & solutions
 ├── README.md                          # 📖 Main project documentation
 ├── QUICK_START.md                     # ⚡ 3-minute deployment guide
-└── deploy.ps1                         # 🚀 Multi-environment deployment script
+├── deploy.ps1                         # 🚀 PowerShell deployment script
+└── deploy.sh                          # 🚀 Bash deployment script (equivalent functionality)
 ```
 
 ## ✅ Architecture Achievements
@@ -72,9 +73,19 @@ cloudrun-jenkins/
 - 🛡️ **Network Security**: Controlled ingress/egress rules
 - 📋 **Multi-factor Ready**: Leverages Google account security
 
+### **Deployment Automation Excellence**
+- 🚀 **Dual Script Support**: Both PowerShell (`deploy.ps1`) and Bash (`deploy.sh`) with identical features
+- 🔍 **Comprehensive Validation**: Prerequisites, project structure, and access verification
+- 💰 **Cost Transparency**: Real-time cost estimates before deployment
+- 🎯 **Environment Awareness**: Intelligent dev/prod configuration management
+- 🛡️ **Error Handling**: Robust error detection and user-friendly troubleshooting guidance
+- ⚡ **Fast Track Options**: Skip validation and force apply for experienced users
+
 ## 🚀 Ready for Deployment
 
 ### **Development Environment**
+
+#### PowerShell (Windows/Cross-Platform)
 ```powershell
 # Quick start (3 minutes)
 cd environments/dev
@@ -84,7 +95,19 @@ cd ../..
 .\deploy.ps1 -Environment dev
 ```
 
-### **Production Environment**  
+#### Bash (Linux/macOS/WSL)
+```bash
+# Quick start (3 minutes)
+cd environments/dev
+cp terraform.tfvars.example terraform.tfvars
+# Edit with your project_id and authorized_users
+cd ../..
+./deploy.sh dev
+```
+
+### **Production Environment**
+
+#### PowerShell
 ```powershell
 # Production deployment
 cd environments/prod
@@ -92,6 +115,16 @@ cp terraform.tfvars.example terraform.tfvars
 # Edit with production values
 cd ../..
 .\deploy.ps1 -Environment prod
+```
+
+#### Bash
+```bash
+# Production deployment
+cd environments/prod
+cp terraform.tfvars.example terraform.tfvars
+# Edit with production values
+cd ../..
+./deploy.sh prod
 ```
 
 ## 💡 Key Features Summary
@@ -191,4 +224,6 @@ You now have a **production-ready, ultra-frugal Jenkins environment** that:
 
 **This represents a 95%+ cost savings compared to traditional always-on approaches while providing superior security, scalability, and operational excellence.**
 
-Ready to deploy? Start with: `.\deploy.ps1 -Environment dev` 🚀
+Ready to deploy? Choose your platform:
+- **PowerShell**: `.\deploy.ps1 -Environment dev` 🚀
+- **Bash**: `./deploy.sh dev` 🚀

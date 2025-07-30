@@ -61,11 +61,13 @@ authorized_users = [
 
 ### Step 3: Deploy in Seconds
 ```powershell
-# Windows
-.\deploy.ps1
+# PowerShell (Windows/Cross-Platform)
+.\deploy.ps1 -Environment dev
+```
 
-# Linux/Mac
-./deploy.sh
+```bash
+# Bash (Linux/macOS/WSL)
+./deploy.sh dev
 ```
 
 ### Step 4: Access Instantly
@@ -126,6 +128,10 @@ gcloud compute instances list --filter="spot-agent"
 # Emergency shutdown (if costs spike)
 gcloud run services update jenkins-ultra-frugal --max-instances=0
 gcloud compute instances stop --zone=us-central1-a spot-agent-*
+
+# Or use deployment scripts for controlled shutdown
+./deploy.sh dev --destroy    # Bash
+.\deploy.ps1 -Environment dev -Destroy  # PowerShell
 ```
 
 ## 🎯 Performance Optimizations

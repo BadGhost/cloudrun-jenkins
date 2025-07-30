@@ -67,12 +67,22 @@ authorized_users = [
 
 ## Step 4: Deploy Development Environment
 
+### Option 1: PowerShell (Windows/Cross-Platform)
 ```powershell
 # Return to root directory
 cd ../..
 
 # Deploy to development environment
 .\deploy.ps1 -Environment dev
+```
+
+### Option 2: Bash (Linux/macOS/WSL)
+```bash
+# Return to root directory
+cd ../..
+
+# Deploy to development environment
+./deploy.sh dev
 ```
 
 The script will:
@@ -166,7 +176,8 @@ gcloud compute instances list --filter="name:spot-agent*"
 
 For production use:
 
-```bash
+### PowerShell
+```powershell
 # Configure production environment
 cd environments/prod
 cp terraform.tfvars.example terraform.tfvars
@@ -177,6 +188,20 @@ cp terraform.tfvars.example terraform.tfvars
 # Deploy to production
 cd ../..
 .\deploy.ps1 -Environment prod
+```
+
+### Bash
+```bash
+# Configure production environment
+cd environments/prod
+cp terraform.tfvars.example terraform.tfvars
+
+# Edit backend.tf to use GCS bucket for state
+# Edit terraform.tfvars with production values
+
+# Deploy to production
+cd ../..
+./deploy.sh prod
 ```
 
 ## Architecture Benefits
@@ -234,17 +259,34 @@ gcloud run services describe jenkins-ultra-frugal --region=us-central1
 ## Environment Management Commands
 
 ```powershell
-# Deploy to different environments  
+# PowerShell - Deploy to different environments  
 .\deploy.ps1 -Environment dev     # Development
 .\deploy.ps1 -Environment prod    # Production
 
-# Skip validation (faster)
+# PowerShell - Skip validation (faster)
 .\deploy.ps1 -Environment dev -SkipValidation
 
-# Force apply without confirmation
+# PowerShell - Force apply without confirmation
 .\deploy.ps1 -Environment dev -Force
+```
 
-# Manual operations
+```bash
+# Bash - Deploy to different environments
+./deploy.sh dev                   # Development (default)
+./deploy.sh prod                  # Production
+
+# Bash - Skip validation (faster)
+./deploy.sh dev --skip-validation
+
+# Bash - Force apply without confirmation
+./deploy.sh dev --force
+
+# Bash - Destroy environment
+./deploy.sh dev --destroy
+```
+
+```bash
+# Manual operations (both PowerShell and Bash)
 cd environments/dev
 terraform plan                    # Review changes
 terraform apply                   # Apply changes  
