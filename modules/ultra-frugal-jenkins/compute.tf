@@ -1,27 +1,30 @@
-# Instance template for Jenkins agents
+# Ultra-frugal instance template for Jenkins agents using Spot VMs (91% discount!)
 resource "google_compute_instance_template" "jenkins_agent" {
-  name_prefix  = "jenkins-agent-"
-  machine_type = "e2-small"  # Cost-effective machine type
+  name_prefix  = "jenkins-spot-agent-"
+  machine_type = "e2-micro"  # Smallest possible for maximum cost savings
   
-  # Use preemptible instances for 90% cost savings
+  # Use Spot VMs for maximum 91% cost savings
   scheduling {
-    preemptible         = true
-    automatic_restart   = false
-    on_host_maintenance = "TERMINATE"
+    preemptible                 = true
+    automatic_restart           = false
+    on_host_maintenance         = "TERMINATE"
+    provisioning_model          = "SPOT"
+    instance_termination_action = "STOP"
   }
   
   disk {
     source_image = "projects/debian-cloud/global/images/family/debian-12"
     auto_delete  = true
     boot         = true
-    disk_size_gb = 20
+    disk_size_gb = 10  # Minimal disk size for cost savings
+    type         = "pd-standard"  # Cheapest disk type
   }
   
   network_interface {
     network    = google_compute_network.jenkins_vpc.name
     subnetwork = google_compute_subnetwork.jenkins_subnet.name
     
-    # No external IP to save costs
+    # No external IP to save costs - agents communicate through internal network
     # access_config {}  # Commented out for private access only
   }
   
@@ -34,14 +37,15 @@ resource "google_compute_instance_template" "jenkins_agent" {
     enable-oslogin = "TRUE"
   }
   
-  # Startup script to configure Jenkins agent
-  metadata_startup_script = templatefile("${path.module}/scripts/agent-startup.sh", {
-    jenkins_url = "http://${google_cloud_run_v2_service.jenkins.uri}"
+  # Startup script to configure ultra-lean Jenkins agent
+  metadata_startup_script = templatefile("${path.module}/scripts/spot-agent-startup.sh", {
+    jenkins_url = google_cloud_run_v2_service.jenkins.uri
     project_id  = var.project_id
     zone        = var.zone
+    bucket_name = google_storage_bucket.jenkins_storage.name
   })
   
-  tags = ["jenkins", "jenkins-agent"]
+  tags = ["jenkins", "jenkins-agent", "iap-access", "spot-vm"]
   
   labels = var.labels
   

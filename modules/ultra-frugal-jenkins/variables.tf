@@ -5,15 +5,15 @@ variable "project_id" {
 }
 
 variable "region" {
-  description = "GCP Region"
+  description = "GCP Region - us-central1 for maximum cost efficiency"
   type        = string
-  default     = "asia-east1"
+  default     = "us-central1"
 }
 
 variable "zone" {
-  description = "GCP Zone"
+  description = "GCP Zone - us-central1-a for spot VM availability"
   type        = string
-  default     = "asia-east1-a"
+  default     = "us-central1-a"
 }
 
 variable "jenkins_admin_password" {
@@ -28,16 +28,27 @@ variable "jenkins_user_password" {
   sensitive   = true
 }
 
+variable "authorized_users" {
+  description = "List of Google account emails authorized to access Jenkins"
+  type        = list(string)
+  default     = []
+  validation {
+    condition     = length(var.authorized_users) <= 3 && length(var.authorized_users) > 0
+    error_message = "You can specify 1-3 authorized users for cost optimization."
+  }
+}
+
 variable "vpn_shared_secret" {
-  description = "VPN shared secret for authentication"
+  description = "VPN shared secret for authentication - DEPRECATED: Using IAP instead"
   type        = string
   sensitive   = true
+  default     = ""
 }
 
 variable "client_ip_range" {
-  description = "Your home IP range for VPN access (CIDR format)"
+  description = "Your home IP range for VPN access - DEPRECATED: Using IAP instead"
   type        = string
-  default     = "192.168.1.0/24"
+  default     = ""
 }
 
 # Optional variables with defaults

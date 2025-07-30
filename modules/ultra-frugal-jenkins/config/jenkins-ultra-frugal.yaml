@@ -1,0 +1,152 @@
+jenkins:
+  systemMessage: "Ultra-Frugal Jenkins on GCP - Maximum Cost Optimization with IAP Security"
+  
+  # Security realm configuration for IAP integration
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "${admin_password}"
+          properties:
+            - "hudson.security.HudsonPrivateSecurityRealm$Details":
+                passwordHash: "{JBCRYPT}$2a$10$..."
+        - id: "user"
+          password: "${user_password}"
+          properties:
+            - "hudson.security.HudsonPrivateSecurityRealm$Details":
+                passwordHash: "{JBCRYPT}$2a$10$..."
+
+  # Authorization strategy optimized for IAP
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Hudson.Administer:admin"
+        - "Hudson.Read:admin"
+        - "Hudson.Read:user"
+        - "Job.Build:user"
+        - "Job.Cancel:user"
+        - "Job.Read:user"
+        - "Job.Workspace:user"
+        - "Run.Replay:user"
+        - "Run.Update:user"
+        - "View.Read:user"
+
+  # Remote access API
+  remotingSecurity:
+    enabled: true
+
+  # Global settings for ultra-frugal operation
+  globalNodeProperties:
+    - envVars:
+        env:
+          - key: "GCP_PROJECT"
+            value: "${project_id}"
+          - key: "GCP_REGION"
+            value: "${region}"
+          - key: "GCP_ZONE"
+            value: "${zone}"
+          - key: "COST_MODE"
+            value: "ULTRA_FRUGAL"
+          - key: "STORAGE_BUCKET"
+            value: "${storage_bucket}"
+
+  # Ultra-frugal cloud configuration for Spot VMs
+  clouds:
+    - googleComputeEngine:
+        name: "ultra-frugal-gcp"
+        projectId: "${project_id}"
+        instanceCapStr: "2"  # Maximum 2 agents for cost control
+        configurations:
+          - namePrefix: "spot-agent"
+            description: "Ultra-frugal Spot VM agents (91% discount)"
+            region: "https://www.googleapis.com/compute/v1/projects/${project_id}/regions/${region}"
+            zone: "https://www.googleapis.com/compute/v1/projects/${project_id}/zones/${zone}"
+            machineType: "https://www.googleapis.com/compute/v1/projects/${project_id}/zones/${zone}/machineTypes/e2-micro"
+            numExecutors: 1  # Single executor per agent for cost optimization
+            preemptible: true
+            useSpotInstances: true  # 91% cost savings!
+            labels: "docker gcp linux spot ultra-frugal"
+            runAsUser: "jenkins"
+            bootDiskType: "https://www.googleapis.com/compute/v1/projects/${project_id}/zones/${zone}/diskTypes/pd-standard"
+            bootDiskSizeGbStr: "10"  # Minimal disk size
+            networkConfiguration:
+              network: "https://www.googleapis.com/compute/v1/projects/${project_id}/global/networks/${network}"
+              subnetwork: "https://www.googleapis.com/compute/v1/projects/${project_id}/regions/${region}/subnetworks/${subnetwork}"
+              externalAddress: false
+            serviceAccountEmail: ""
+            idleTerminationMinutes: 5  # Terminate quickly to save costs
+
+# Tools configuration (minimal for cost savings)
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "git"
+
+# Ultra-frugal plugin configuration
+unclassified:
+  location:
+    url: "https://jenkins-${project_id}.nip.io/jenkins"
+    adminAddress: "${authorized_users[0]}"
+  
+  # Pipeline configuration
+  globalLibraries:
+    libraries:
+      - name: "ultra-frugal-library"
+        defaultVersion: "main"
+        implicit: false
+        allowVersionOverride: true
+        includeInChangesets: true
+
+  # Cost optimization settings
+  buildDiscarders:
+    configuredBuildDiscarders:
+      - jobBuildDiscarder:
+          discarder:
+            logRotator:
+              numToKeepStr: "5"  # Keep only 5 builds
+              daysToKeepStr: "7"  # Keep for 7 days only
+
+# Security settings optimized for IAP
+security:
+  globalJobDslSecurityConfiguration:
+    useScriptSecurity: true
+  
+  # Prevent CSRF attacks
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: true  # IAP handles this
+
+  # IAP integration headers
+  queueItemAuthenticator:
+    authenticators:
+      - global:
+          strategy: "triggeringUsersAuthorizationStrategy"
+
+# System properties for ultra-frugal operation
+systemProperties:
+  - key: "hudson.model.DirectoryBrowserSupport.CSP"
+    value: ""
+  - key: "jenkins.model.Jenkins.slaveAgentPort"
+    value: "50000"
+  - key: "jenkins.model.Jenkins.slaveAgentPortEnforce"
+    value: "true"
+  - key: "hudson.slaves.NodeProvisioner.initialDelay"
+    value: "0"  # Provision agents immediately
+  - key: "hudson.slaves.NodeProvisioner.MARGIN"
+    value: "0"  # No margin - strict cost control
+  - key: "hudson.slaves.NodeProvisioner.MARGIN0"
+    value: "0"
+  - key: "jenkins.install.runSetupWizard"
+    value: "false"  # Skip setup wizard
+
+# Cost optimization: Aggressive cleanup and job restrictions
+  workspaceCleanupPlugin:
+    deleteDirs: true
+    cleanupMatrixParent: true
+    disableDeferredWipeout: false
+  
+  # Job authorization strategy
+  authorizationStrategy:
+    inherit: true

@@ -1,13 +1,23 @@
-# Cloud Storage bucket for Jenkins data
+# Ultra-frugal Cloud Storage bucket for Jenkins data (replaces persistent disk)
 resource "google_storage_bucket" "jenkins_storage" {
-  name          = "${var.project_id}-jenkins-storage"
+  name          = "${var.project_id}-jenkins-ultra-storage"
   location      = var.region
   force_destroy = false
   
-  # Cost optimization settings
+  # Ultra-cost-optimized storage class
   storage_class = "STANDARD"
   
-  # Lifecycle management to control costs
+  # Aggressive lifecycle management for maximum cost savings
+  lifecycle_rule {
+    condition {
+      age = 30  # Move to cheaper storage faster
+    }
+    action {
+      type          = "SetStorageClass"
+      storage_class = "NEARLINE"
+    }
+  }
+  
   lifecycle_rule {
     condition {
       age = 90
@@ -20,7 +30,7 @@ resource "google_storage_bucket" "jenkins_storage" {
   
   lifecycle_rule {
     condition {
-      age = 365
+      age = 180  # Shorter retention for cost savings
     }
     action {
       type = "Delete"
@@ -37,15 +47,8 @@ resource "google_storage_bucket" "jenkins_storage" {
   labels = var.labels
 }
 
-# Persistent disk for Jenkins home directory
-resource "google_compute_disk" "jenkins_home" {
-  name  = "jenkins-home-disk"
-  type  = "pd-standard"  # Standard persistent disk for cost optimization
-  zone  = var.zone
-  size  = var.storage_size
-  
-  labels = var.labels
-}
+# Remove persistent disk - using GCS mounting instead
+# This saves significant costs compared to persistent disks
 
 # Service account for Jenkins
 resource "google_service_account" "jenkins_sa" {
