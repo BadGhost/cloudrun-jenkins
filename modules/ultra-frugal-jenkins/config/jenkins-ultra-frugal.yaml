@@ -142,11 +142,11 @@ systemProperties:
     value: "false"  # Skip setup wizard
 
 # Cost optimization: Aggressive cleanup and job restrictions
-  workspaceCleanupPlugin:
-    deleteDirs: true
-    cleanupMatrixParent: true
-    disableDeferredWipeout: false
-  
-  # Job authorization strategy
-  authorizationStrategy:
-    inherit: true
+workspaceCleanupPlugin:
+  deleteDirs: true
+  cleanupMatrixParent: true
+  disableDeferredWipeout: false
+
+# Job authorization strategy
+authorizationStrategy:
+  inherit: true
