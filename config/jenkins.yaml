@@ -1,0 +1,113 @@
+jenkins:
+  systemMessage: "Jenkins on GCP - Cost-Optimized Deployment"
+  
+  # Security realm configuration
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "${admin_password}"
+          properties:
+            - "hudson.security.HudsonPrivateSecurityRealm$Details":
+                passwordHash: "{JBCRYPT}$2a$10$..."
+        - id: "user"
+          password: "${user_password}"
+          properties:
+            - "hudson.security.HudsonPrivateSecurityRealm$Details":
+                passwordHash: "{JBCRYPT}$2a$10$..."
+
+  # Authorization strategy
+  authorizationStrategy:
+    globalMatrix:
+      permissions:
+        - "Hudson.Administer:admin"
+        - "Hudson.Read:admin"
+        - "Hudson.Read:user"
+        - "Job.Build:user"
+        - "Job.Cancel:user"
+        - "Job.Read:user"
+        - "Job.Workspace:user"
+        - "Run.Replay:user"
+        - "Run.Update:user"
+        - "View.Read:user"
+
+  # Remote access API
+  remotingSecurity:
+    enabled: true
+
+  # Global settings
+  globalNodeProperties:
+    - envVars:
+        env:
+          - key: "GCP_PROJECT"
+            value: "${project_id}"
+          - key: "GCP_REGION"
+            value: "${region}"
+          - key: "GCP_ZONE"
+            value: "${zone}"
+
+  # Clouds configuration for GCP VM agents
+  clouds:
+    - googleComputeEngine:
+        name: "gcp"
+        projectId: "${project_id}"
+        instanceCapStr: "3"
+        configurations:
+          - namePrefix: "jenkins-agent"
+            description: "Jenkins agents on GCP"
+            region: "https://www.googleapis.com/compute/v1/projects/${project_id}/regions/${region}"
+            zone: "https://www.googleapis.com/compute/v1/projects/${project_id}/zones/${zone}"
+            machineType: "https://www.googleapis.com/compute/v1/projects/${project_id}/zones/${zone}/machineTypes/e2-small"
+            numExecutors: 2
+            preemptible: true
+            labels: "docker gcp linux"
+            runAsUser: "jenkins"
+            bootDiskType: "https://www.googleapis.com/compute/v1/projects/${project_id}/zones/${zone}/diskTypes/pd-standard"
+            bootDiskSizeGbStr: "20"
+            networkConfiguration:
+              network: "https://www.googleapis.com/compute/v1/projects/${project_id}/global/networks/${network}"
+              subnetwork: "https://www.googleapis.com/compute/v1/projects/${project_id}/regions/${region}/subnetworks/${subnetwork}"
+              externalAddress: false
+            serviceAccountEmail: ""
+
+# Tools configuration
+tool:
+  git:
+    installations:
+      - name: "Default"
+        home: "git"
+
+# Plugin configuration
+unclassified:
+  location:
+    url: "http://jenkins-controller-hash.${region}.run.app"
+    adminAddress: "admin@localhost"
+  
+  # Pipeline configuration
+  globalLibraries:
+    libraries:
+      - name: "shared-library"
+        defaultVersion: "main"
+        implicit: false
+        allowVersionOverride: true
+        includeInChangesets: true
+
+# Security settings
+security:
+  globalJobDslSecurityConfiguration:
+    useScriptSecurity: true
+  
+  # Prevent CSRF attacks
+  crumbIssuer:
+    standard:
+      excludeClientIPFromCrumb: false
+
+# System properties for cost optimization
+systemProperties:
+  - key: "hudson.model.DirectoryBrowserSupport.CSP"
+    value: ""
+  - key: "jenkins.model.Jenkins.slaveAgentPort"
+    value: "50000"
+  - key: "jenkins.model.Jenkins.slaveAgentPortEnforce"
+    value: "true"

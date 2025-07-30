@@ -1,0 +1,22 @@
+# Copy this file to terraform.tfvars and update with your values
+
+# Required: Your GCP project ID
+project_id = "your-gcp-project-id"
+
+# Security: Set strong passwords for Jenkins users
+jenkins_admin_password = "your-strong-admin-password"
+jenkins_user_password  = "your-strong-user-password"
+
+# VPN: Set a strong shared secret for VPN authentication
+vpn_shared_secret = "your-vpn-shared-secret"
+
+# Network: Your home IP range (update this to your actual home network)
+client_ip_range = "192.168.1.0/24"
+
+# Optional: Uncomment and modify if needed
+# region = "asia-east1"
+# zone = "asia-east1-a"
+# jenkins_memory = "2Gi"
+# jenkins_cpu = "1"
+# storage_size = 10
+# max_agents = 3
