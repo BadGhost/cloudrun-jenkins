@@ -53,13 +53,14 @@ cloudrun-jenkins/
 │       ├── versions.tf               # Provider versions
 │       └── terraform.tfvars.example  # Configuration template
 ├── docs/                             # Comprehensive documentation
-├── deploy.ps1                        # Multi-environment deployment script
+├── deploy.ps1                        # PowerShell deployment script
+├── deploy.sh                         # Bash deployment script
 └── README.md                         # This file
 ```
 
 ## ⚡ **Quick Start (3 Minutes)**
 
-### **Development Environment**
+### **Option 1: PowerShell Deployment (Windows/Cross-Platform)**
 ```powershell
 # 1. Clone and setup
 git clone <repo> && cd cloudrun-jenkins
@@ -78,19 +79,42 @@ cd ../..
 # Sign in with your authorized Google account
 ```
 
+### **Option 2: Bash Deployment (Linux/macOS/WSL)**
+```bash
+# 1. Clone and setup
+git clone <repo> && cd cloudrun-jenkins
+
+# 2. Configure development environment
+cd environments/dev
+cp terraform.tfvars.example terraform.tfvars
+# Edit terraform.tfvars with your project ID and authorized Google accounts
+
+# 3. Deploy from root directory
+cd ../..
+./deploy.sh dev
+
+# 4. Access Jenkins
+# Open the URL from the deployment output
+# Sign in with your authorized Google account
+```
+
 ### **Production Environment** 
 ```powershell
-# 1. Configure production environment
+# PowerShell
 cd environments/prod
 cp terraform.tfvars.example terraform.tfvars
 # Edit with production-specific values
-
-# 2. Set up GCS backend for production state
-# Edit backend.tf with your production state bucket
-
-# 3. Deploy production
 cd ../..
 .\deploy.ps1 -Environment prod
+```
+
+```bash
+# Bash
+cd environments/prod
+cp terraform.tfvars.example terraform.tfvars
+# Edit with production-specific values  
+cd ../..
+./deploy.sh prod
 ```
 
 ## 🏢 **Environment Management**
@@ -139,6 +163,33 @@ cd ../..
 
 ## 🛠️ **Advanced Usage**
 
+### **Deployment Script Options**
+
+#### **PowerShell Script (`deploy.ps1`)**
+```powershell
+# Basic deployments
+.\deploy.ps1                           # Deploy to dev (default)
+.\deploy.ps1 -Environment prod         # Deploy to production
+.\deploy.ps1 -Environment dev -Force   # Skip confirmation prompts
+.\deploy.ps1 -Environment dev -Destroy # Destroy environment
+
+# Advanced options
+.\deploy.ps1 -Environment dev -SkipValidation  # Skip prerequisite checks
+```
+
+#### **Bash Script (`deploy.sh`)**
+```bash
+# Basic deployments
+./deploy.sh                     # Deploy to dev (default)
+./deploy.sh prod               # Deploy to production
+./deploy.sh dev --force        # Skip confirmation prompts
+./deploy.sh dev --destroy      # Destroy environment
+
+# Advanced options
+./deploy.sh dev --skip-validation  # Skip prerequisite checks
+./deploy.sh --help                 # Show usage information
+```
+
 ### **Module Customization**
 ```hcl
 # environments/dev/main.tf
@@ -161,7 +212,7 @@ module "ultra_frugal_jenkins" {
 
 ### **Multi-Environment Deployments**
 ```powershell
-# Deploy to multiple environments
+# PowerShell - Deploy to multiple environments
 .\deploy.ps1 -Environment dev    # Development
 .\deploy.ps1 -Environment prod   # Production
 
@@ -173,6 +224,21 @@ terraform apply                  # Apply dev changes
 cd ../prod  
 terraform plan                   # Plan prod changes
 terraform apply                  # Apply prod changes
+```
+
+```bash
+# Bash - Deploy to multiple environments  
+./deploy.sh dev     # Development
+./deploy.sh prod    # Production
+
+# Environment-specific operations
+cd environments/dev
+terraform plan      # Plan dev changes
+terraform apply     # Apply dev changes
+
+cd ../prod
+terraform plan      # Plan prod changes
+terraform apply     # Apply prod changes
 ```
 
 ### **State Management**
