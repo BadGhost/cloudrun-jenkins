@@ -12,7 +12,7 @@ resource "google_compute_network" "jenkins_vpc" {
 # Minimal subnet for cost optimization
 resource "google_compute_subnetwork" "jenkins_subnet" {
   name          = "jenkins-frugal-subnet"
-  ip_cidr_range = "10.0.0.0/24"
+  ip_cidr_range = "10.0.0.0/28"
   region        = var.region
   network       = google_compute_network.jenkins_vpc.id
   
@@ -34,6 +34,8 @@ resource "google_vpc_access_connector" "jenkins_connector" {
   machine_type   = "f1-micro"
   min_instances  = 2
   max_instances  = 3
+  
+  depends_on = [google_project_service.required_apis]
 }
 
 # Firewall rule for IAP access (replaces VPN rules)
@@ -68,7 +70,7 @@ resource "google_compute_firewall" "allow_internal" {
     protocol = "icmp"
   }
   
-  source_ranges = ["10.0.0.0/24"]
+  source_ranges = ["10.0.0.0/28"]
   target_tags   = ["jenkins"]
 }
 

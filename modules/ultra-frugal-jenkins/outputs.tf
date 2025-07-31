@@ -1,12 +1,24 @@
 output "jenkins_url" {
   description = "Public HTTPS URL for Jenkins (IAP-protected)"
-  value       = "https://jenkins-${var.project_id}.nip.io/jenkins"
+  value       = "https://${local.jenkins_domain}/jenkins"
   sensitive   = false
 }
 
 output "jenkins_iap_url" {
   description = "Alternative IAP URL for Jenkins"
-  value       = "https://${google_compute_global_address.jenkins_ip.address}.nip.io/jenkins"
+  value       = "https://${local.jenkins_domain}/jenkins"
+  sensitive   = false
+}
+
+output "jenkins_domain" {
+  description = "The nip.io domain for Jenkins (for SSL certificate validation)"
+  value       = local.jenkins_domain
+  sensitive   = false
+}
+
+output "jenkins_static_ip" {
+  description = "Static IP address for the Jenkins load balancer"
+  value       = google_compute_global_address.jenkins_ip.address
   sensitive   = false
 }
 
@@ -87,7 +99,7 @@ output "deployment_instructions" {
     4. ✅ Direct GCS mounting eliminates persistent disk costs
     
     📍 Access Jenkins:
-       URL: https://jenkins-${var.project_id}.nip.io/jenkins
+       URL: https://${local.jenkins_domain}/jenkins
        
     🔐 Authentication:
        - Automatic via Google IAP (no VPN setup needed!)
@@ -97,11 +109,12 @@ output "deployment_instructions" {
     💰 Expected Monthly Cost: $0.80 - $1.50 (well under $2 budget!)
     
     🚀 Next Steps:
-       1. Open the Jenkins URL in your browser
-       2. Sign in with your authorized Google account
-       3. Create your first pipeline job
-       4. Watch Spot VM agents provision automatically
-       5. Monitor costs in GCP Console
+       1. Wait 5-10 minutes for SSL certificate provisioning
+       2. Open the Jenkins URL in your browser (https required)
+       3. Sign in with your authorized Google account
+       4. Create your first pipeline job
+       5. Watch Spot VM agents provision automatically
+       6. Monitor costs in GCP Console
     
     📊 Cost Monitoring:
        - Set budget alerts in GCP Console

@@ -227,16 +227,23 @@ validate_prerequisites() {
         errors+=("Terraform is not installed or not in PATH")
     else
         local terraform_version
-        if terraform_version=$(terraform version -json 2>/dev/null | jq -r '.terraform_version' 2>/dev/null); then
+        # Try JSON format first, fallback to parsing text output
+        if terraform_version=$(terraform version -json 2>/dev/null | jq -r '.terraform_version' 2>/dev/null) && [[ -n "$terraform_version" && "$terraform_version" != "null" ]]; then
             log_success "Terraform version: $terraform_version"
-            
-            # Check if version is 1.0 or later
+        elif terraform_version=$(terraform version 2>/dev/null | head -n1 | grep -oE 'v?[0-9]+\.[0-9]+\.[0-9]+(-[a-zA-Z0-9]+)*' | head -n1); then
+            # Remove 'v' prefix if present
+            terraform_version="${terraform_version#v}"
+            log_success "Terraform version: $terraform_version"
+        else
+            errors+=("Unable to determine Terraform version")
+        fi
+        
+        # Check if version is 1.0 or later (only if we successfully got the version)
+        if [[ -n "$terraform_version" && "$terraform_version" != "null" ]]; then
             local major_version="${terraform_version%%.*}"
             if [[ $major_version -lt 1 ]]; then
                 errors+=("Terraform 1.0 or later is required. Current version: $terraform_version")
             fi
-        else
-            errors+=("Unable to determine Terraform version")
         fi
     fi
     

@@ -1,6 +1,12 @@
 # Ultra-Frugal Cloud Run Jenkins with IAP Authentication
 # This replaces VPN-based access with Google Identity-Aware Proxy
 
+# Locals for domain construction (following nip.io best practices)
+locals {
+  # Construct the nip.io domain with dashes instead of dots for proper SSL cert handling
+  jenkins_domain = "jenkins-${replace(google_compute_global_address.jenkins_ip.address, ".", "-")}.nip.io"
+}
+
 # Cloud Run service for Jenkins controller (ultra-frugal configuration)
 resource "google_cloud_run_v2_service" "jenkins" {
   name     = "jenkins-ultra-frugal"
@@ -45,11 +51,16 @@ resource "google_cloud_run_v2_service" "jenkins" {
         value = "/var/jenkins_config/jenkins.yaml"
       }
       
-      # Direct GCS mounting (your brilliant idea!)
-      volume_mounts {
-        name       = "jenkins-home"
-        mount_path = "/var/jenkins_home"
+      env {
+        name  = "JENKINS_STORAGE_BUCKET"
+        value = google_storage_bucket.jenkins_storage.name
       }
+      
+      # Direct GCS mounting (your brilliant idea!)
+      # volume_mounts {
+      #   name       = "jenkins-home"
+      #   mount_path = "/var/jenkins_home"
+      # }
       
       volume_mounts {
         name       = "jenkins-config"
@@ -81,14 +92,14 @@ resource "google_cloud_run_v2_service" "jenkins" {
     }
     
     # Direct GCS mounting volumes
-    volumes {
-      name = "jenkins-home"
-      gcs {
-        bucket    = google_storage_bucket.jenkins_storage.name
-        read_only = false
-      }
-    }
-    
+    # volumes {
+    #   name = "jenkins-home"
+    #   gcs {
+    #     bucket    = google_storage_bucket.jenkins_storage.name
+    #     read_only = false
+    #   }
+    # }
+
     volumes {
       name = "jenkins-config"
       secret {
@@ -99,14 +110,12 @@ resource "google_cloud_run_v2_service" "jenkins" {
           path    = "jenkins.yaml"
         }
       }
-    }
-    
-    # Service account
+    }    # Service account
     service_account = google_service_account.jenkins_sa.email
     
     # VPC connector for spot VM communication
     vpc_access {
-      connector = google_vpc_access_connector.jenkins_connector.name
+      connector = google_vpc_access_connector.jenkins_connector.id
       egress    = "PRIVATE_RANGES_ONLY"
     }
     
@@ -139,6 +148,8 @@ resource "google_iap_web_type_compute_iam_binding" "jenkins_iap" {
   project = var.project_id
   role    = "roles/iap.httpsResourceAccessor"
   members = [for email in var.authorized_users : "user:${email}"]
+  
+  depends_on = [google_project_service.required_apis]
 }
 
 # Backend service for IAP
@@ -150,11 +161,19 @@ resource "google_compute_backend_service" "jenkins_backend" {
     group = google_compute_region_network_endpoint_group.jenkins_neg.id
   }
   
-  iap {
-    enabled              = true
-    oauth2_client_id     = google_iap_client.jenkins_oauth.client_id
-    oauth2_client_secret = google_iap_client.jenkins_oauth.secret
-  }
+  # Timeout configuration
+  timeout_sec = 30
+  
+  # Session affinity for Jenkins
+  session_affinity = "CLIENT_IP"
+}
+
+# Configure IAP for the backend service
+resource "google_iap_web_backend_service_iam_binding" "jenkins_iap_backend" {
+  project             = var.project_id
+  web_backend_service = google_compute_backend_service.jenkins_backend.name
+  role                = "roles/iap.httpsResourceAccessor"
+  members             = [for email in var.authorized_users : "user:${email}"]
 }
 
 # Network Endpoint Group for Cloud Run
@@ -168,24 +187,52 @@ resource "google_compute_region_network_endpoint_group" "jenkins_neg" {
   }
 }
 
-# OAuth client for IAP
-resource "google_iap_client" "jenkins_oauth" {
-  display_name = "Jenkins Ultra-Frugal IAP Client"
-  brand        = google_iap_brand.jenkins_brand.name
+# Allow unauthenticated access to Cloud Run for load balancer
+resource "google_cloud_run_service_iam_member" "noauth" {
+  location = google_cloud_run_v2_service.jenkins.location
+  project  = google_cloud_run_v2_service.jenkins.project
+  service  = google_cloud_run_v2_service.jenkins.name
+  role     = "roles/run.invoker"
+  member   = "allUsers"
 }
 
-# IAP brand configuration
-resource "google_iap_brand" "jenkins_brand" {
-  support_email     = var.authorized_users[0]  # First user as support contact
-  application_title = "Ultra-Frugal Jenkins CI/CD"
-  project           = var.project_id
-}
+# OAuth client for IAP - Disabled for personal projects
+# Personal Google Cloud projects don't support IAP brands
+# Users will access Jenkins directly via Cloud Run URL
+
+# resource "google_iap_client" "jenkins_oauth" {
+#   display_name = "Jenkins Ultra-Frugal IAP Client"
+#   brand        = google_iap_brand.jenkins_brand.name
+# }
+
+# resource "google_iap_brand" "jenkins_brand" {
+#   support_email     = var.authorized_users[0]
+#   application_title = "Ultra-Frugal Jenkins CI/CD"
+#   project           = var.project_id
+#   
+#   depends_on = [google_project_service.required_apis]
+# }
 
 # Load balancer for IAP (minimal configuration)
 resource "google_compute_url_map" "jenkins_lb" {
   name            = "jenkins-ultra-lb"
   description     = "Ultra-frugal load balancer for Jenkins IAP"
   default_service = google_compute_backend_service.jenkins_backend.id
+
+  host_rule {
+    hosts        = [local.jenkins_domain]
+    path_matcher = "jenkins-matcher"
+  }
+
+  path_matcher {
+    name            = "jenkins-matcher"
+    default_service = google_compute_backend_service.jenkins_backend.id
+    
+    path_rule {
+      paths   = ["/jenkins/*", "/jenkins"]
+      service = google_compute_backend_service.jenkins_backend.id
+    }
+  }
 }
 
 resource "google_compute_target_https_proxy" "jenkins_proxy" {
@@ -201,18 +248,47 @@ resource "google_compute_global_forwarding_rule" "jenkins_forwarding" {
   ip_address = google_compute_global_address.jenkins_ip.address
 }
 
+# HTTP to HTTPS redirect
+resource "google_compute_url_map" "jenkins_http_redirect" {
+  name = "jenkins-http-redirect"
+  
+  default_url_redirect {
+    https_redirect         = true
+    redirect_response_code = "MOVED_PERMANENTLY_DEFAULT"
+    strip_query            = false
+  }
+}
+
+resource "google_compute_target_http_proxy" "jenkins_http_proxy" {
+  name    = "jenkins-http-proxy"
+  url_map = google_compute_url_map.jenkins_http_redirect.id
+}
+
+resource "google_compute_global_forwarding_rule" "jenkins_http_forwarding" {
+  name       = "jenkins-http-forwarding"
+  target     = google_compute_target_http_proxy.jenkins_http_proxy.id
+  port_range = "80"
+  ip_address = google_compute_global_address.jenkins_ip.address
+}
+
 # Static IP for the load balancer
 resource "google_compute_global_address" "jenkins_ip" {
   name = "jenkins-ultra-ip"
+  
+  depends_on = [google_project_service.required_apis]
 }
 
 # Managed SSL certificate
 resource "google_compute_managed_ssl_certificate" "jenkins_ssl" {
-  name = "jenkins-ultra-ssl"
+  name = "jenkins-ultra-ssl-v3"
   
   managed {
-    domains = ["jenkins-${var.project_id}.nip.io"]  # Free domain service
+    domains = [
+      local.jenkins_domain
+    ]
   }
+  
+  depends_on = [google_project_service.required_apis]
 }
 
 # Secret for Jenkins configuration as code (updated for IAP)
@@ -228,6 +304,8 @@ resource "google_secret_manager_secret" "jenkins_config" {
   }
   
   labels = var.labels
+  
+  depends_on = [google_project_service.required_apis]
 }
 
 resource "google_secret_manager_secret_version" "jenkins_config" {
@@ -242,5 +320,6 @@ resource "google_secret_manager_secret_version" "jenkins_config" {
     subnetwork        = google_compute_subnetwork.jenkins_subnet.name
     authorized_users  = var.authorized_users
     storage_bucket    = google_storage_bucket.jenkins_storage.name
+    jenkins_domain    = local.jenkins_domain
   })
 }

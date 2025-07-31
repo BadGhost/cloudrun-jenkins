@@ -87,7 +87,7 @@ tool:
 # Ultra-frugal plugin configuration
 unclassified:
   location:
-    url: "https://jenkins-${project_id}.nip.io/jenkins"
+    url: "https://${jenkins_domain}/jenkins"
     adminAddress: "${authorized_users[0]}"
   
   # Pipeline configuration

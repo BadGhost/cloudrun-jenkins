@@ -72,13 +72,13 @@ resource "google_compute_region_instance_group_manager" "jenkins_agents" {
     initial_delay_sec = 300
   }
   
-  # Update policy for rolling updates
+  # Update policy for rolling updates (optimized for small regional deployment)
   update_policy {
     type                         = "PROACTIVE"
-    instance_redistribution_type = "PROACTIVE"
+    instance_redistribution_type = "PROACTIVE" 
     minimal_action               = "REPLACE"
-    max_surge_fixed              = 1
-    max_unavailable_fixed        = 0
+    max_surge_fixed              = 3   # Match number of zones in us-central1 (a,b,c,f)
+    max_unavailable_fixed        = 0   # Don't allow any unavailable instances during updates
   }
 }
 
@@ -91,6 +91,8 @@ resource "google_compute_health_check" "jenkins_agent" {
   tcp_health_check {
     port = "22"  # SSH port for health checking
   }
+  
+  depends_on = [google_project_service.required_apis]
 }
 
 # Autoscaler for Jenkins agents

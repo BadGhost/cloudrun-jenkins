@@ -157,7 +157,7 @@ pipeline {
 ## Step 7: Monitor Costs (Important!)
 
 ### Set Up Budget Alerts
-1. Visit [GCP Billing Console](https://console.cloud.google.com/billing)
+1. Visit [GCP Billing Console](https://console.cloud.google.com/billing/01CBC1-068930-7B4E53/budgets?inv=1&invt=Ab4Irg)
 2. Navigate to **Budgets & alerts**  
 3. Create a budget for **$2.00/month**
 4. Set alerts at **50%**, **80%**, and **100%**

@@ -96,7 +96,7 @@ while true; do
   CONTAINER_COUNT=$(docker ps -q | wc -l)
   CPU_USAGE=$(top -bn1 | grep "Cpu(s)" | awk '{print $2}' | sed 's/%us,//')
   
-  if [ "$CONTAINER_COUNT" -eq 0 ] && [ "${CPU_USAGE%.*}" -lt 5 ]; then
+  if [ "$CONTAINER_COUNT" -eq 0 ] && [ "$${CPU_USAGE%.*}" -lt 5 ]; then
     IDLE_COUNT=$((IDLE_COUNT + 1))
     if [ "$IDLE_COUNT" -ge 10 ]; then  # 10 minutes of idle
       echo "System idle for 10 minutes, shutting down for cost savings"

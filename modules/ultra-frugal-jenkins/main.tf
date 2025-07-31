@@ -8,7 +8,8 @@ resource "google_project_service" "required_apis" {
     "iam.googleapis.com",
     "cloudbuild.googleapis.com",
     "secretmanager.googleapis.com",
-    "iap.googleapis.com"
+    "iap.googleapis.com",
+    "vpcaccess.googleapis.com"
   ])
   
   project = var.project_id

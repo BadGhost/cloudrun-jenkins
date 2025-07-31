@@ -89,6 +89,8 @@ resource "google_secret_manager_secret" "jenkins_admin_password" {
   }
   
   labels = var.labels
+  
+  depends_on = [google_project_service.required_apis]
 }
 
 resource "google_secret_manager_secret_version" "jenkins_admin_password" {
@@ -108,6 +110,8 @@ resource "google_secret_manager_secret" "jenkins_user_password" {
   }
   
   labels = var.labels
+  
+  depends_on = [google_project_service.required_apis]
 }
 
 resource "google_secret_manager_secret_version" "jenkins_user_password" {
