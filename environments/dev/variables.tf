@@ -47,3 +47,16 @@ variable "labels" {
     cost-center = "personal"
   }
 }
+
+variable "additional_allowed_ips" {
+  description = "Additional IP addresses/ranges to allow access (in CIDR format, e.g., '192.168.1.1/32'). Your current IP is automatically detected and added."
+  type        = list(string)
+  default     = []
+  
+  validation {
+    condition = alltrue([
+      for ip in var.additional_allowed_ips : can(cidrhost(ip, 0))
+    ])
+    error_message = "All IP addresses must be in valid CIDR format (e.g., '192.168.1.1/32' or '10.0.0.0/24')."
+  }
+}

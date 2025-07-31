@@ -1,36 +1,20 @@
 jenkins:
-  systemMessage: "Ultra-Frugal Jenkins on GCP - Maximum Cost Optimization with IAP Security"
+  systemMessage: "Ultra-Frugal Jenkins on GCP - Maximum Cost Optimization with IP-based Security"
   
-  # Security realm configuration for IAP integration
+  # Security realm configuration for local authentication (IP-based security)
   securityRealm:
     local:
       allowsSignup: false
       users:
         - id: "admin"
           password: "${admin_password}"
-          properties:
-            - "hudson.security.HudsonPrivateSecurityRealm$Details":
-                passwordHash: "{JBCRYPT}$2a$10$..."
         - id: "user"
           password: "${user_password}"
-          properties:
-            - "hudson.security.HudsonPrivateSecurityRealm$Details":
-                passwordHash: "{JBCRYPT}$2a$10$..."
 
-  # Authorization strategy optimized for IAP
+  # Authorization strategy for local authentication
   authorizationStrategy:
-    globalMatrix:
-      permissions:
-        - "Hudson.Administer:admin"
-        - "Hudson.Read:admin"
-        - "Hudson.Read:user"
-        - "Job.Build:user"
-        - "Job.Cancel:user"
-        - "Job.Read:user"
-        - "Job.Workspace:user"
-        - "Run.Replay:user"
-        - "Run.Update:user"
-        - "View.Read:user"
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
 
   # Remote access API
   remotingSecurity:
@@ -88,7 +72,7 @@ tool:
 unclassified:
   location:
     url: "https://${jenkins_domain}/jenkins"
-    adminAddress: "${authorized_users[0]}"
+    adminAddress: "admin@${jenkins_domain}"
   
   # Pipeline configuration
   globalLibraries:
@@ -108,7 +92,7 @@ unclassified:
               numToKeepStr: "5"  # Keep only 5 builds
               daysToKeepStr: "7"  # Keep for 7 days only
 
-# Security settings optimized for IAP
+# Security settings optimized for local authentication
 security:
   globalJobDslSecurityConfiguration:
     useScriptSecurity: true
@@ -116,9 +100,9 @@ security:
   # Prevent CSRF attacks
   crumbIssuer:
     standard:
-      excludeClientIPFromCrumb: true  # IAP handles this
+      excludeClientIPFromCrumb: false  # Local auth needs CSRF protection
 
-  # IAP integration headers
+  # Local authentication
   queueItemAuthenticator:
     authenticators:
       - global:
@@ -146,7 +130,3 @@ workspaceCleanupPlugin:
   deleteDirs: true
   cleanupMatrixParent: true
   disableDeferredWipeout: false
-
-# Job authorization strategy
-authorizationStrategy:
-  inherit: true

@@ -39,19 +39,20 @@ resource "google_vpc_access_connector" "jenkins_connector" {
 }
 
 # Firewall rule for IAP access (replaces VPN rules)
-resource "google_compute_firewall" "allow_iap" {
-  name    = "jenkins-allow-iap"
-  network = google_compute_network.jenkins_vpc.name
-  
-  allow {
-    protocol = "tcp"
-    ports    = ["8080", "22", "80", "443"]
-  }
-  
-  # Google IAP source ranges
-  source_ranges = ["35.235.240.0/20"]
-  target_tags   = ["jenkins", "iap-access"]
-}
+# DISABLED: Using IP-based security instead of IAP
+# resource "google_compute_firewall" "allow_iap" {
+#   name    = "jenkins-allow-iap"
+#   network = google_compute_network.jenkins_vpc.name
+#   
+#   allow {
+#     protocol = "tcp"
+#     ports    = ["8080", "22", "80", "443"]
+#   }
+#   
+#   # Google IAP source ranges
+#   source_ranges = ["35.235.240.0/20"]
+#   target_tags   = ["jenkins", "iap-access"]
+# }
 
 # Firewall rule for internal communication
 resource "google_compute_firewall" "allow_internal" {

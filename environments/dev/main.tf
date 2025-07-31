@@ -12,6 +12,7 @@ module "ultra_frugal_jenkins" {
   jenkins_user_password  = var.jenkins_user_password
   
   authorized_users = var.authorized_users
+  additional_allowed_ips = var.additional_allowed_ips
   
   labels = var.labels
 }

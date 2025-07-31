@@ -1,5 +1,5 @@
-# Ultra-Frugal Cloud Run Jenkins with IAP Authentication
-# This replaces VPN-based access with Google Identity-Aware Proxy
+# Ultra-Frugal Cloud Run Jenkins 
+# Personal projects don't support IAP, so we'll use IP-based security
 
 # Locals for domain construction (following nip.io best practices)
 locals {
@@ -35,7 +35,6 @@ resource "google_cloud_run_v2_service" "jenkins" {
         container_port = 8080
       }
       
-      # Ultra-frugal environment variables
       env {
         name  = "JENKINS_OPTS"
         value = "--httpPort=8080 --prefix=/jenkins"  # Add prefix for IAP
@@ -56,49 +55,79 @@ resource "google_cloud_run_v2_service" "jenkins" {
         value = google_storage_bucket.jenkins_storage.name
       }
       
-      # Direct GCS mounting (your brilliant idea!)
-      # volume_mounts {
-      #   name       = "jenkins-home"
-      #   mount_path = "/var/jenkins_home"
-      # }
+      env {
+        name  = "JENKINS_HOME"
+        value = "/var/jenkins_home"
+      }
+      
+      # Selective GCS mounting for persistence (avoid mounting entire jenkins_home)
+      volume_mounts {
+        name       = "jenkins-jobs"
+        mount_path = "/var/jenkins_home/jobs"
+      }
+      
+      volume_mounts {
+        name       = "jenkins-workspace"
+        mount_path = "/var/jenkins_home/workspace"
+      }
+      
+      volume_mounts {
+        name       = "jenkins-users"
+        mount_path = "/var/jenkins_home/users"
+      }
       
       volume_mounts {
         name       = "jenkins-config"
         mount_path = "/var/jenkins_config"
       }
       
-      # Optimized health checks
+      # TCP-based startup probe (just checks if port is open, not if Jenkins is fully ready)
       startup_probe {
-        http_get {
-          path = "/jenkins/login"
+        tcp_socket {
           port = 8080
         }
-        initial_delay_seconds = 30  # Faster startup
-        timeout_seconds       = 10
-        failure_threshold     = 10
-        period_seconds        = 5
+        initial_delay_seconds = 90   # Allow time for GCS mounting + basic startup
+        timeout_seconds       = 10   
+        failure_threshold     = 20   # Many retries for first-time initialization
+        period_seconds        = 15   
       }
-      
+
       liveness_probe {
         http_get {
           path = "/jenkins/login"
           port = 8080
         }
-        initial_delay_seconds = 60
-        timeout_seconds       = 5
-        failure_threshold     = 3
-        period_seconds        = 30
+        initial_delay_seconds = 120  # Wait for Jenkins to fully start
+        timeout_seconds       = 10   # More forgiving timeout
+        failure_threshold     = 5    # More retries before restart
+        period_seconds        = 60   # Less frequent checks once running
       }
     }
     
-    # Direct GCS mounting volumes
-    # volumes {
-    #   name = "jenkins-home"
-    #   gcs {
-    #     bucket    = google_storage_bucket.jenkins_storage.name
-    #     read_only = false
-    #   }
-    # }
+    # Selective GCS mounting volumes for persistence (avoid mounting entire jenkins_home)
+    volumes {
+      name = "jenkins-jobs"
+      gcs {
+        bucket    = google_storage_bucket.jenkins_storage.name
+        read_only = false
+      }
+    }
+
+    volumes {
+      name = "jenkins-workspace"
+      gcs {
+        bucket    = google_storage_bucket.jenkins_storage.name
+        read_only = false
+      }
+    }
+
+    volumes {
+      name = "jenkins-users"
+      gcs {
+        bucket    = google_storage_bucket.jenkins_storage.name
+        read_only = false
+      }
+    }
 
     volumes {
       name = "jenkins-config"
@@ -200,17 +229,17 @@ resource "google_cloud_run_service_iam_member" "noauth" {
 # Personal Google Cloud projects don't support IAP brands
 # Users will access Jenkins directly via Cloud Run URL
 
-# resource "google_iap_client" "jenkins_oauth" {
-#   display_name = "Jenkins Ultra-Frugal IAP Client"
-#   brand        = google_iap_brand.jenkins_brand.name
-# }
-
 # resource "google_iap_brand" "jenkins_brand" {
 #   support_email     = var.authorized_users[0]
 #   application_title = "Ultra-Frugal Jenkins CI/CD"
 #   project           = var.project_id
 #   
 #   depends_on = [google_project_service.required_apis]
+# }
+
+# resource "google_iap_client" "jenkins_oauth" {
+#   display_name = "Jenkins Ultra-Frugal IAP Client"
+#   brand        = google_iap_brand.jenkins_brand.name
 # }
 
 # Load balancer for IAP (minimal configuration)
