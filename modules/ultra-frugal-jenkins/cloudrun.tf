@@ -60,20 +60,10 @@ resource "google_cloud_run_v2_service" "jenkins" {
         value = "/var/jenkins_home"
       }
       
-      # Selective GCS mounting for persistence (avoid mounting entire jenkins_home)
+      # Complete GCS mounting for persistence - mount entire jenkins_home
       volume_mounts {
-        name       = "jenkins-jobs"
-        mount_path = "/var/jenkins_home/jobs"
-      }
-      
-      volume_mounts {
-        name       = "jenkins-workspace"
-        mount_path = "/var/jenkins_home/workspace"
-      }
-      
-      volume_mounts {
-        name       = "jenkins-users"
-        mount_path = "/var/jenkins_home/users"
+        name       = "jenkins-home"
+        mount_path = "/var/jenkins_home"
       }
       
       volume_mounts {
@@ -104,25 +94,9 @@ resource "google_cloud_run_v2_service" "jenkins" {
       }
     }
     
-    # Selective GCS mounting volumes for persistence (avoid mounting entire jenkins_home)
+    # Complete GCS mounting volumes for persistence - mount entire jenkins_home
     volumes {
-      name = "jenkins-jobs"
-      gcs {
-        bucket    = google_storage_bucket.jenkins_storage.name
-        read_only = false
-      }
-    }
-
-    volumes {
-      name = "jenkins-workspace"
-      gcs {
-        bucket    = google_storage_bucket.jenkins_storage.name
-        read_only = false
-      }
-    }
-
-    volumes {
-      name = "jenkins-users"
+      name = "jenkins-home"
       gcs {
         bucket    = google_storage_bucket.jenkins_storage.name
         read_only = false
