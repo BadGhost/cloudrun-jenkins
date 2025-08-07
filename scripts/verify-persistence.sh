@@ -1,7 +1,7 @@
 #!/bin/bash
 
-# Script to verify Jenkins persistence after Cloud Run scale to zero
-# Run this after deployment to validate configuration persistence
+# Script to truly verify Jenkins persistence by creating a job,
+# forcing a scale-to-zero event, and then checking if the job still exists.
 
 set -e
 
@@ -12,82 +12,90 @@ if [ -z "$PROJECT_ID" ]; then
     exit 1
 fi
 
-echo "🔍 Verifying Jenkins persistence for project: $PROJECT_ID"
-echo "=================================================="
+echo "🚀 Starting end-to-end persistence verification for project: $PROJECT_ID"
+echo "======================================================================"
 
-# 1. Check if Cloud Run service exists and is scaled to zero
-echo "1. Checking Cloud Run service status..."
-SERVICE_STATUS=$(gcloud run services describe jenkins-ultra-frugal \
+# --- Jenkins Credentials and Configuration ---
+JENKINS_USER="admin"
+JENKINS_PASS="@Simonza01" # Default password from JCasC
+SERVICE_NAME="jenkins-ultra-frugal"
+REGION="us-central1"
+
+# 1. Get Jenkins Service URL
+echo "1. Fetching Jenkins service URL..."
+JENKINS_URL=$(gcloud run services describe $SERVICE_NAME \
     --platform=managed \
-    --region=us-central1 \
+    --region=$REGION \
     --project=$PROJECT_ID \
-    --format="value(status.conditions[0].status)" 2>/dev/null || echo "NotFound")
+    --format="value(status.url)")
 
-if [ "$SERVICE_STATUS" = "NotFound" ]; then
-    echo "❌ Jenkins Cloud Run service not found!"
+if [ -z "$JENKINS_URL" ]; then
+    echo "❌ Could not retrieve Jenkins URL. Is the service deployed?"
     exit 1
 fi
+echo "✅ Jenkins URL: $JENKINS_URL"
 
-echo "✅ Cloud Run service exists"
+# 2. Create a unique job to test persistence
+JOB_NAME="persistence-test-$(date +%s)"
+echo "2. Creating a unique test job in Jenkins: $JOB_NAME"
 
-# 2. Check if GCS bucket exists with proper configuration
-echo "2. Checking GCS bucket configuration..."
-BUCKET_NAME="${PROJECT_ID}-jenkins-ultra-storage"
-BUCKET_EXISTS=$(gcloud storage buckets list --filter="name:$BUCKET_NAME" --project=$PROJECT_ID --format="value(name)" 2>/dev/null)
+# Simple shell command job XML
+JOB_XML="<project><description>Test job to verify persistence.</description><keepDependencies>false</keepDependencies><properties/><scm class=\"hudson.scm.NullSCM\"/><canRoam>true</canRoam><disabled>false</disabled><blockBuildWhenDownstreamBuilding>false</blockBuildWhenDownstreamBuilding><blockBuildWhenUpstreamBuilding>false</blockBuildWhenUpstreamBuilding><triggers/><concurrentBuild>false</concurrentBuild><builders><hudson.tasks.Shell><command>echo 'Persistence test successful!'</command></hudson.tasks.Shell></builders><publishers/><buildWrappers/></project>"
 
-if [ -z "$BUCKET_EXISTS" ]; then
-    echo "❌ Jenkins storage bucket not found!"
+CREATE_RESPONSE=$(curl -s -X POST "$JENKINS_URL/jenkins/createItem?name=$JOB_NAME" \
+    --user "$JENKINS_USER:$JENKINS_PASS" \
+    -H "Content-Type: application/xml" \
+    --data-binary "$JOB_XML" \
+    --write-out "%{http_code}" \
+    --output /dev/null)
+
+if [ "$CREATE_RESPONSE" -ne 200 ]; then
+    echo "❌ Failed to create Jenkins job. HTTP status: $CREATE_RESPONSE"
+    echo "   Please check credentials and ensure Jenkins is running."
     exit 1
 fi
+echo "✅ Jenkins job '$JOB_NAME' created successfully."
 
-echo "✅ GCS bucket exists: $BUCKET_NAME"
+# 3. Force a scale-to-zero and restart
+echo "3. Forcing a restart by scaling Cloud Run service to zero and back..."
 
-# 3. Check bucket lifecycle configuration  
-echo "3. Checking bucket lifecycle for cost optimization..."
-LIFECYCLE_CHECK=$(gcloud storage buckets describe gs://$BUCKET_NAME --project=$PROJECT_ID --format="value(lifecycle_config.rule[].condition.age)" 2>/dev/null)
-if [[ "$LIFECYCLE_CHECK" == *"30"* && "$LIFECYCLE_CHECK" == *"90"* && "$LIFECYCLE_CHECK" == *"180"* ]]; then
-    echo "✅ Lifecycle rules configured properly (30/90/180 day transitions)"
-else
-    echo "⚠️  Lifecycle rules may need review"
-fi
-
-# 4. Force scale to zero and back up to test persistence
-echo "4. Testing scale-to-zero persistence..."
-echo "   Scaling service to minimum instances (demonstrating zero-scale capability)..."
-
-gcloud run services update jenkins-ultra-frugal \
+# Scale down (allow failure in case it's already at 0)
+gcloud run services update $SERVICE_NAME \
     --platform=managed \
-    --region=us-central1 \
+    --region=$REGION \
     --project=$PROJECT_ID \
-    --min-instances=0 \
+    --max-instances=0 \
+    --quiet || true
+echo "   Scaled down to max-instances=0. Waiting 60 seconds for instance to terminate..."
+sleep 60
+
+# Scale back up
+gcloud run services update $SERVICE_NAME \
+    --platform=managed \
+    --region=$REGION \
+    --project=$PROJECT_ID \
     --max-instances=1 \
     --quiet
+echo "   Scaled up to max-instances=1. Waiting 90 seconds for Jenkins to restart..."
+sleep 90
 
-echo "   Waiting 30 seconds for scale down demonstration..."
-sleep 30
+# 4. Verify the job still exists
+echo "4. Verifying if job '$JOB_NAME' still exists after restart..."
+VERIFY_RESPONSE=$(curl -s -I -L "$JENKINS_URL/jenkins/job/$JOB_NAME/" \
+    --user "$JENKINS_USER:$JENKINS_PASS" \
+    | grep -i "HTTP/2")
 
-echo "   Service scaling is properly configured for zero-scale capability!"
 
-# 5. Get the service URL for manual verification
-JENKINS_URL=$(gcloud run services describe jenkins-ultra-frugal \
-    --platform=managed \
-    --region=us-central1 \
-    --project=$PROJECT_ID \
-    --format="value(status.url)" 2>/dev/null)
-
-echo ""
-echo "🎉 Persistence Test Complete!"
-echo "=============================="
-echo "✅ Cloud Run scales to zero: YES"
-echo "✅ GCS bucket configured: YES"  
-echo "✅ Volume mounting enabled: YES (check deployment)"
-echo ""
-echo "🔗 Jenkins URL: ${JENKINS_URL}/jenkins"
-echo ""
-echo "📋 Manual Verification Steps:"
-echo "1. Access Jenkins and create a test job"
-echo "2. Run: gcloud run services update jenkins-ultra-frugal --max-instances=0 --project=$PROJECT_ID"
-echo "3. Wait 5 minutes, then restore: --max-instances=1"
-echo "4. Verify your test job still exists"
-echo ""
-echo "💡 If jobs disappear, the GCS volume mounting needs troubleshooting!"
+if [[ "$VERIFY_RESPONSE" == *"200"* ]]; then
+    echo "🎉 SUCCESS: Jenkins job '$JOB_NAME' persists after restart!"
+    echo "✅ Persistence is working correctly."
+    # Clean up the test job
+    curl -s -X POST "$JENKINS_URL/jenkins/job/$JOB_NAME/doDelete" --user "$JENKINS_USER:$JENKINS_PASS" > /dev/null
+    echo "   Cleaned up test job."
+    exit 0
+else
+    echo "❌ FAILURE: Jenkins job '$JOB_NAME' does NOT exist after restart."
+    echo "   HTTP status from check: $(echo "$VERIFY_RESPONSE" | awk '{print $2}')"
+    echo "   Persistence is NOT working correctly."
+    exit 1
+fi
