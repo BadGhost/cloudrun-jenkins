@@ -9,6 +9,35 @@ This is an "Ultra-Frugal" Jenkins deployment on Google Cloud Platform designed f
 - **Direct GCS mounting** replacing persistent disks entirely (zero storage costs)
 - **nip.io domains** for automatic SSL certificate handling
 
+## Critical Persistence Issue (ACTIVE)
+
+**PROBLEM**: The current selective GCS mounting configuration in `cloudrun.tf` only mounts specific directories (`/var/jenkins_home/jobs`, `/var/jenkins_home/users`, `/var/jenkins_home/workspace`) but misses **critical Jenkins directories** like `/var/jenkins_home/secrets` (containing initial admin passwords) and the root `config.xml` file.
+
+**SYMPTOM**: Jenkins shows initial setup screen every time instead of using configured credentials.
+
+**ROOT CAUSE**: Jenkins core configuration files are not persisted between container restarts.
+
+**SOLUTION PATTERNS**:
+1. **Full Home Mounting**: Mount entire `/var/jenkins_home` to GCS for complete persistence
+2. **Enhanced Selective Mounting**: Add missing directories like `secrets`, `userContent`, `fingerprints`
+3. **Performance vs. Persistence Trade-off**: Balance cold start speed with data preservation
+
+### Current vs. Fixed Configuration
+```hcl
+# BROKEN (current) - selective mounting missing critical paths
+volume_mounts {
+  name       = "jenkins-jobs"
+  mount_path = "/var/jenkins_home/jobs"
+}
+# Missing: /var/jenkins_home/secrets, /var/jenkins_home/*.xml
+
+# FIXED - complete persistence
+volume_mounts {
+  name       = "jenkins-home"
+  mount_path = "/var/jenkins_home"  # Mount entire home directory
+}
+```
+
 ## Key Terraform Patterns
 
 ### Module Structure
@@ -45,6 +74,29 @@ This is an "Ultra-Frugal" Jenkins deployment on Google Cloud Platform designed f
 - **No VPN needed**: Direct Google SSO integration
 - **Enterprise-ready**: But adds complexity and potential costs
 
+## Critical Jenkins Workflows
+
+### Initial Setup Recovery (Common Issue)
+When Jenkins shows setup wizard instead of configured credentials:
+```bash
+# Get auto-generated initial password from logs
+gcloud run services logs read jenkins-ultra-frugal --region=us-central1 --limit=200 | grep -A2 "following password"
+
+# Alternative: Use automated script
+./environments/dev/get-jenkins-password.sh
+```
+
+**Pattern**: Jenkins generates temporary admin password on first startup, Configuration as Code (JCasC) loads AFTER initial unlock.
+
+### Persistence Verification
+```bash
+# Test persistence after fixing mount configuration
+./scripts/verify-persistence.sh YOUR_PROJECT_ID
+
+# Manual test pattern:
+# 1. Create test job → 2. Scale to zero → 3. Wait → 4. Scale up → 5. Verify job exists
+```
+
 ## Deployment Workflows
 
 ### Dual Script Pattern
@@ -79,13 +131,8 @@ validation {
 ### Jenkins Configuration as Code (JCasC)
 - Template files in `modules/ultra-frugal-jenkins/config/`
 - Variables injected via Terraform: `${admin_password}`, `${project_id}`
-- IAP-optimized security realm configuration
-- **Auto-mounting**: GCS buckets replace traditional persistent volumes
-
-### Agent Startup Scripts
-Located in `modules/ultra-frugal-jenkins/scripts/`:
-- `agent-startup.sh` - Standard agent setup
-- `spot-agent-startup.sh` - Optimized for Spot VMs with auto-termination
+- **Local security realm** (not IAP-integrated) in ultra-frugal config
+- **Critical**: Loads AFTER initial setup wizard completion
 
 ### Domain Construction Pattern
 ```hcl
@@ -107,8 +154,26 @@ jenkins_domain = "jenkins-${replace(google_compute_global_address.jenkins_ip.add
 ./setup-ip-security.sh
 ```
 
+### Persistence Testing
+```bash
+# Verify GCS mounting works correctly
+./scripts/verify-persistence.sh PROJECT_ID
+```
+
 ### Jenkins Access
 After deployment, access via: `https://jenkins-[IP-with-dashes].nip.io/jenkins`
+
+## Performance Characteristics
+
+### Cold Start Impact
+- **With selective mounting**: ~45-60 seconds (only jobs/users/workspace)
+- **With full home mounting**: ~60-90 seconds (complete JENKINS_HOME)
+- **Trade-off**: Complete persistence vs. faster cold starts
+
+### GCS Mount Performance
+- **FUSE-based mounting**: Direct file system access to GCS
+- **Caching**: 60-second TTL by default, configurable via mount options
+- **Write staging**: Files staged in memory before GCS upload
 
 ## Critical Dependencies
 
@@ -120,53 +185,27 @@ container.googleapis.com, iam.googleapis.com, cloudbuild.googleapis.com,
 secretmanager.googleapis.com, iap.googleapis.com
 ```
 
-### IP Security Authentication Flow
-- **Current IP auto-detection**: Uses `https://ipinfo.io/ip` for automatic IP discovery
-- **Additional IPs**: Configurable via `additional_allowed_ips` variable
-- **Firewall rule**: `google_compute_firewall.jenkins_ip_allowlist` restricts access
-
-### IAP Authentication Flow (Alternative)
-- No VPN needed - all access through IAP
-- Authorized users defined in `terraform.tfvars`
-- Service accounts configured with minimal required permissions
+### Cloud Run Gen2 Requirements
+- **Execution environment**: `EXECUTION_ENVIRONMENT_GEN2` required for GCS volume mounting
+- **Memory considerations**: GCS FUSE uses container memory for caching and file staging
+- **Mount options**: Available for tuning cache behavior and performance
 
 ## Development Guidelines
+
+### When Fixing Persistence Issues
+1. **Identify missing paths**: Check which Jenkins directories aren't persisted
+2. **Choose mounting strategy**: Full `/var/jenkins_home` vs. selective directories + missing paths
+3. **Test cold starts**: Verify performance impact after changes
+4. **Update verification scripts**: Ensure `verify-persistence.sh` tests critical paths
 
 ### When Modifying Costs
 - Update cost estimates in both deployment scripts
 - Modify validation rules in `variables.tf`
 - Test in dev environment first
 
-### Adding New Environments
-1. Copy `environments/dev/` structure
-2. Update `backend.tf` for state management
-3. Customize `terraform.tfvars.example`
-
 ### Terraform State Management
 - **Dev**: Local state for rapid iteration
 - **Prod**: GCS backend for team collaboration
 - Never mix state backends between environments
 
-## Common Operations
-
-### Deploy with validation skip
-```bash
-./deploy.sh dev --skip-validation --force
-```
-
-### Check costs after deployment
-```bash
-cd environments/dev && terraform output
-```
-
-### Destroy environment
-```bash
-./deploy.sh dev --destroy
-```
-
-### View agent status
-```bash
-gcloud compute instances list --filter='name:spot-agent*'
-```
-
-The "ultra-frugal" philosophy drives all architectural decisions - prioritize cost optimization while maintaining enterprise security through IAP and minimal viable resource allocation.
+The "ultra-frugal" philosophy drives all architectural decisions - prioritize cost optimization while maintaining enterprise security and now ensuring complete data persistence through proper GCS mounting configuration.
